@@ -27,18 +27,20 @@ def main():
         move.go_camera_position()
         rospy.sleep(3) 
         
-        block_pos = [0.02289368,  0.10472973,  0.68946166, 0,0,0]
+        # example block position from aruco codes from gripper-mounted camera
+        block_pos = [0.07538333 , 0.07607283,  0.75523393, 0,0,0]
         
-        cam_sets = (0.094, -0.031, 0.0235) # m
         WE = move.get_self_pose()
-        EC = move.get_camera_transformation(cam_sets, current=False)
+        EC = move.get_camera_transformation(current=False)
         CB = move.cartesian_to_pose(block_pos)
-        EG = move.get_gripper_transformation(-1*pi/4)
         WB = WE.dot(EC).dot(CB)
         
-        move.go_to_block([WB[0,3],WB[1,3], WB[2,3], -2*pi/4, 0, -3*pi/4])# -3*pi/4])  
-        
-        print "============ Python tutorial demo complete!"
+        move.set_vacuum(True)
+        move.go_to_block([WB[0,3],WB[1,3], WB[2,3], -2*pi/4, 0, -3*pi/4])
+        move.set_vacuum(False)
+
+        print "Movements complete ..."
+
     except rospy.ROSInterruptException:
         return
     except KeyboardInterrupt:
@@ -79,13 +81,13 @@ class MoveUR5(object):
         self.svcpath = '/ur_driver/set_io'
         self.back_distance = 0.15 # meters
         self.wait_between_pick_place = 2.0 # seconds
-        #self.group.set_planner_id('RRTConnectkConfigDefault')
+        self.group.set_planner_id('RRTConnectkConfigDefault')
         self.group.set_max_velocity_scaling_factor(0.1)
         self.group.allow_replanning(True)
         self.group.allow_looking(True)
         self.group.set_num_planning_attempts(500)
-        #self.group.set_goal_position_tolerance(0.01) # m
-        #self.group.set_goal_orientation_tolerance(0.1) # rad
+        self.group.set_goal_position_tolerance(0.01) # m
+        self.group.set_goal_orientation_tolerance(0.1) # rad
 
         if not self.sim:
             self.setioreq = SetIO()
@@ -93,28 +95,35 @@ class MoveUR5(object):
             self.setioreq.fun = 1 # dIO function
             self.setioreq.pin = 0 # dIO pin
             rospy.wait_for_service(self.svcpath, 5.0)
+        else:
+            self.set_constraints()
         
     def set_constraints(self):
-        self.group.clear_path_constraints()
         consts = Constraints()
-        consts.joint_constraints.append(JointConstraint(joint_name='shoulder_pan_joint',
-                                   position=pi/2, tolerance_above=pi/3,
-                                   tolerance_below=pi/3, weight=1))
-        consts.joint_constraints.append(JointConstraint(joint_name='shoulder_lift_joint',
-                                   position=0, tolerance_above=0,
-                                   tolerance_below=2*pi/3, weight=1))
-        #consts.joint_constraints.append(JointConstraint(joint_name='elbow_joint',
-        #                           position=0, tolerance_above=pi,
-        #                           tolerance_bel=pi, weight=0.5))
-        consts.joint_constraints.append(JointConstraint(joint_name='wrist_1_joint',
-                                   position=pi/2, tolerance_above=pi/3,
-                                   tolerance_below=pi/3, weight=1))
-        #consts.joint_constraints.append(JointConstraint(joint_name='wrist_2_joint',
-        #                           position=0, tolerance_above=0.7,
-        #                           tolerance_below=pi, weight=1))
-        consts.joint_constraints.append(JointConstraint(joint_name='wrist_3_joint',
-                                   position=pi/4, tolerance_above=0.3,
-                                   tolerance_below=0.3, weight=1))
+        consts.joint_constraints.append(
+                           JointConstraint(joint_name='shoulder_pan_joint',
+                           position=0.3, tolerance_above=2.5,
+                           tolerance_below=0.1, weight=1))
+        consts.joint_constraints.append(
+                           JointConstraint(joint_name='shoulder_lift_joint',
+                           position=0, tolerance_above=0.0,
+                           tolerance_below=2.5, weight=1))
+        #consts.joint_constraints.append(
+        #                  JointConstraint(joint_name='elbow_joint',
+        #                  position=0, tolerance_above=pi,
+        #                  tolerance_bel=pi, weight=0.5))
+        consts.joint_constraints.append(
+                           JointConstraint(joint_name='wrist_1_joint',
+                           position=-2.2, tolerance_above=2.2,
+                           tolerance_below=2.7, weight=1))
+        consts.joint_constraints.append(
+                           JointConstraint(joint_name='wrist_2_joint',
+                           position=0.4, tolerance_above=0.1,
+                           tolerance_below=4.0, weight=1))
+        consts.joint_constraints.append(
+                           JointConstraint(joint_name='wrist_3_joint',
+                           position=pi/4.0, tolerance_above=0.5,
+                           tolerance_below=0.5, weight=1))
         self.group.set_path_constraints(consts)
     
     def clear_constraints(self):
@@ -192,7 +201,7 @@ class MoveUR5(object):
         self.scene.add_box('table', table_pose, size=(2.0, 2.0, 0.03))
 
     def add_jenga_obstacle(self):
-        orient = tft.quaternion_from_euler(pi/4, 0, 0, axes='rzyx') # rotate tower by 45deg
+        orient = tft.quaternion_from_euler(pi/4, 0, 0, axes='rzyx')
         jenga_pose = geometry_msgs.msg.PoseStamped()
         jenga_pose.header.frame_id = 'base_link'
         jenga_pose.pose.orientation.x = orient[0]
@@ -200,8 +209,8 @@ class MoveUR5(object):
         jenga_pose.pose.orientation.z = orient[2]
         jenga_pose.pose.orientation.w = orient[3]
         jenga_pose.pose.position.z = 0.0
-        jenga_pose.pose.position.y = -0.508#-0.5334
-        jenga_pose.pose.position.x = -0.1016#-0.1143
+        jenga_pose.pose.position.y = -0.508
+        jenga_pose.pose.position.x = -0.1016
         self.scene.add_box('jenga', jenga_pose, size=(0.2, 0.2, 0.5))
 
     def go_to_pose_goal(self, pose_goal):
@@ -233,11 +242,10 @@ class MoveUR5(object):
             cur_pose.position.z += -1*pz
             waypoints.append(copy.deepcopy(cur_pose))
 
-        self.waypoints = waypoints
         (plan, fraction) = self.group.compute_cartesian_path(
-                                           waypoints,                  # waypoints to follow
-                                           eef_step=0.05,              # eef_step
-                                           jump_threshold=0.0,         # jump_threshold
+                                           waypoints, 
+                                           eef_step=0.05,
+                                           jump_threshold=0.0,
                                            avoid_collisions=True)
         return plan, fraction
 
@@ -245,25 +253,20 @@ class MoveUR5(object):
         self.group.execute(plan, wait=True)
 
     def go_to_block(self, goal_block, mid_path_drop=False):
-        #self.add_jenga_obstacle()
+        self.add_jenga_obstacle() # plan around jenga stack
         start = self.initial_pick_up_pose(goal_block)
         self.go_to_pose_goal(self.get_pose_direct(start))
-        #self.scene.remove_world_object('jenga')
+        self.scene.remove_world_object('jenga')
         
         goal = self.get_pose(*goal_block) 
         (plan, fraction) = self.plan_constrained_cartesian_path(goal)
         if fraction > 0.9:
             self.execute_plan(plan)
         else:
-            print('Fraction: %d. Planning failed going backwards. Exiting.' % fraction)
+            print('Fraction: %d. Planning failed.' % fraction)
             return False
-            #exit(1)
         
-        #self.set_vacuum(True)
-        print('Start wait.')
         rospy.sleep(self.wait_between_pick_place)
-        print('End wait.')
-        #raw_input()
         self.set_vacuum(not mid_path_drop)
         self.print_robot_status('Final Location') 
         start = self.get_pose_direct(start)
@@ -271,31 +274,22 @@ class MoveUR5(object):
         if fraction > 0.9:
             self.execute_plan(plan)
         else:
-            print('Fraction: %d. Planning failed going backwards. Exiting.' % fraction)
+            print('Fraction: %d. Planning failed.' % fraction)
             return False
-            #exit(1)
-        rospy.sleep(3)
-        #self.set_vacuum(False)
-        self.group.clear_pose_targets()
-        self.print_robot_status('Retreat Location') 
         
+        rospy.sleep(self.wait_between_pick_place/2.0)
+        self.print_robot_status('Retreat Location') 
         return True
+    
     # calculate initial position based on goal location
     def initial_pick_up_pose(self, goal):
         x,y,z,ry,rp,rr = goal
         bd = self.back_distance
         D_f = tft.translation_matrix((x,y,z))
         R_f = tft.euler_matrix(ry,rp,rr, 'rzyx')
-        print '------------  Goal Location Transformation  ---------------'
         T_f = D_f.dot(R_f)
-        print T_f
-        print '-------------------- Retreat Offsets ----------------------'
         D_i = tft.translation_matrix((bd*np.cos(pi+ry),bd*np.sin(pi+ry),0))
-        print D_i
-        print '------------ Retreat Location Transformation --------------'
-        T_i = D_i.dot(T_f)
-        print T_i
-        return T_i
+        return D_i.dot(T_f)
 
     # get current position of robot as homogeneous transform
     def get_self_pose(self):
@@ -307,18 +301,16 @@ class MoveUR5(object):
         R_s = tft.quaternion_matrix((x,y,z,w))
         return D_s.dot(R_s)
     
-
     def calculate_block_position(self, cam_position, current=False):
         T_block = self.cartesian_to_pose(cam_position)
         T_cam = self.get_camera_transformation(current=current)
-        return T_cam.dot(T_block) # TODO: These may be flipped. IDK if this is what we want actually
+        return T_cam.dot(T_block) 
 
     def get_gripper_transformation(self, yaw):
-        # transformation for gripper
         suction_cup = 0.01 # meters, used to offset suction press
-        gripper_offsets =np.array([0.0,-0.1397+suction_cup,-0.0889, 1]) 
-        R = tft.rotation_matrix(pi/2+yaw, (0,0,1)) # rotation around z
-        p= R.dot(gripper_offsets)
+        gripper_offsets = np.array([0.0,-0.1397+suction_cup,-0.0889, 1]) 
+        R = tft.rotation_matrix(pi/2 + yaw, (0,0,1)) # rotation around z
+        p = R.dot(gripper_offsets)
         D_e = tft.translation_matrix(p[:3])  # m
         return D_e
     
@@ -327,23 +319,14 @@ class MoveUR5(object):
         Rx = tft.rotation_matrix(pi/2, (1,0,0))  
         Rz = tft.rotation_matrix(pi/2, (0,0,1))
         R = Rz.dot(Rx)
-
-        #R_e = tft.rotation_matrix(-pi/4, (1,0,0))
         if offsets is None:
-            D_e = tft.translation_matrix((0.094, -0.042, -0.031)) # m
+            D_e = tft.translation_matrix((0.094, -0.031, 0.0235)) # m
         else:
             D_e = tft.translation_matrix(offsets) # m
-        #D_e = tft.translation_matrix((0.094, -0.031, 0.042)) # m
-        #D_e = tft.translation_matrix((-0.031,-0.094, -0.042)) # m
-        #D_e = tft.translation_matrix((-0.031,-0.094, -0.042)) # m
-        #D_e = tft.translation_matrix((0.042,-0.031, -0.094)) # m
-        if current: # use current robot position to determine camera transformation
+        if current: # use current robot position to determine camera T
             R_e = self.get_self_pose() # use orientation of EE
-            #R_e[:3,3] = 0.0 # zero-out x,y,z
         else:
             R_e = tft.rotation_matrix(-pi/4, (1,0,0)) # rotation around z
-            #R_e = tft.rotation_matrix(-pi/2, (0,0,1)) # rotation around z
-        
         return R_e.dot(D_e).dot(R)
 
     # wrt to camera and gripper transformations
@@ -351,17 +334,7 @@ class MoveUR5(object):
         yaw, _,_ = tft.euler_from_matrix(goal, 'rzyx')
         T_e_t = self.get_gripper_transformation(yaw)
         T_c_t = self.get_camera_transformation()
-        print('camera transform')
-        print(T_c_t)
         T_t_g = tft.inverse_matrix(T_e_t).dot(goal)
-        #T_t_g = goal        
-        # TODO: camera needs rotation along x for 90 degrees
-        print('final transform: (ctrl+d to exit)')
-        #raw_input()
-        
-        #_,_,orient, pose,_ = tft.decompose_matrix(T_t_g)
-        #roll,pitch,yaw = orient
-        #orient = tft.quaternion_from_euler(yaw, pitch, roll, axes='rzyx')
         return self.transform_to_pose(T_t_g)
 
     # Convert cartesian representation to homogeneous transform
