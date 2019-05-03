@@ -2,7 +2,7 @@
 
 ## Purpose
 
-MoveIt! scripts for controlling UR5 with custom solenoid-based gripper.
+MoveIt! scripts for controlling UR5 with custom solenoid-based vacuum gripper.
 
 
 
